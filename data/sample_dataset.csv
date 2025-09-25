@@ -1,0 +1,5 @@
+followers,following,bio_length,has_profile_pic,account_age_days,verified,posts_count,post_frequency,avg_caption_len,hashtag_count,avg_likes,avg_comments,engagement_rate,posting_variance,label
+1200,350,140,1,1200,0,120,0.8,120,5,150,10,0.12,0.2,0
+50,500,0,0,15,0,2,0.2,0,0,1,0,0.01,0.8,1
+980,400,90,1,800,0,80,0.7,80,3,100,5,0.09,0.25,0
+20,1000,0,0,7,0,0,0.1,0,0,0,0,0.0,1.0,1
