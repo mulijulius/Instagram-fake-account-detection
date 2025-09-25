@@ -10,10 +10,12 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QSpinBox,
     QMessageBox,
+    QTabWidget,
 )
 from PySide6.QtCore import Qt
 
 from app.ml.data import load_dataset
+from app.gui.data_explorer import DataExplorerWidget
 from app.ml.features import select_feature_columns, split_features_labels
 from app.ml.normalize import build_scaler, apply_scaler, save_scaler, load_scaler
 from app.ml.autoencoder import AutoencoderTrainer
@@ -30,21 +32,33 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Instagram Fake Account Detection")
 
+        # File paths for persisted artifacts produced by the modeling workflow
         self.dataset_path: str | None = None
         self.scaler_path = ".artifacts/scaler.pkl"
         self.autoencoder_path = ".artifacts/autoencoder.pt"
         self.gan_discriminator_path = ".artifacts/gan_discriminator.pt"
 
+        # Ensure expected project folders exist at runtime
         os.makedirs(".artifacts", exist_ok=True)
         os.makedirs("data", exist_ok=True)
 
+        # Build the application as a 2-tab interface:
+        # 1) Model Trainer (existing controls)
+        # 2) Data Explorer (new: upload/analyze/visualize any tabular file)
+        tabs = QTabWidget()
+        tabs.addTab(self._build_model_tab(), "Model Trainer")
+        tabs.addTab(DataExplorerWidget(), "Data Explorer")
+        self.setCentralWidget(tabs)
+
+    def _build_model_tab(self) -> QWidget:
+        """Construct and return the Model Trainer tab content as a QWidget."""
         container = QWidget()
         layout = QVBoxLayout(container)
 
-        # Dataset loader
+        # Dataset loader row
         dataset_row = QHBoxLayout()
         self.dataset_label = QLabel("Dataset: not selected")
-        btn_browse = QPushButton("Browse CSV…")
+        btn_browse = QPushButton("Browse Dataset…")
         btn_browse.clicked.connect(self.on_browse)
         dataset_row.addWidget(self.dataset_label)
         dataset_row.addWidget(btn_browse)
@@ -79,7 +93,7 @@ class MainWindow(QMainWindow):
         train_row.addWidget(QLabel("GAN lr")); train_row.addWidget(self.gan_lr)
         train_row.addWidget(btn_train_gan)
 
-        # Fusion and threshold
+        # Fusion and threshold row
         fusion_row = QHBoxLayout()
         self.alpha = QDoubleSpinBox(); self.alpha.setRange(0.0, 1.0); self.alpha.setSingleStep(0.05); self.alpha.setValue(0.5)
         self.beta = QDoubleSpinBox(); self.beta.setRange(0.0, 1.0); self.beta.setSingleStep(0.05); self.beta.setValue(0.5)
@@ -91,13 +105,13 @@ class MainWindow(QMainWindow):
         fusion_row.addWidget(QLabel("Threshold T")); fusion_row.addWidget(self.threshold)
         fusion_row.addWidget(btn_eval)
 
-        # Predict single CSV
+        # Predict on CSV row
         predict_row = QHBoxLayout()
         btn_predict = QPushButton("Predict on CSV…")
         btn_predict.clicked.connect(self.on_predict)
         predict_row.addWidget(btn_predict)
 
-        # Synthetic data generation
+        # Synthetic data generation row
         synth_row = QHBoxLayout()
         self.synth_num = QSpinBox(); self.synth_num.setRange(1, 100000); self.synth_num.setValue(500)
         btn_synth = QPushButton("Generate Fake Samples")
@@ -105,6 +119,7 @@ class MainWindow(QMainWindow):
         synth_row.addWidget(QLabel("N synth")); synth_row.addWidget(self.synth_num)
         synth_row.addWidget(btn_synth)
 
+        # Assemble tab layout
         layout.addLayout(dataset_row)
         layout.addLayout(norm_row)
         layout.addLayout(train_row)
@@ -112,7 +127,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(predict_row)
         layout.addLayout(synth_row)
 
-        self.setCentralWidget(container)
+        return container
 
     def on_browse(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Select CSV Dataset", "data", "CSV Files (*.csv)")
