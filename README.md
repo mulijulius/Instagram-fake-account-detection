@@ -15,6 +15,7 @@ Python desktop application implementing a hybrid detection system:
 - Fusion scoring and thresholding
 - Evaluation (Precision, Recall, F1, ROC-AUC)
 - GUI to orchestrate training, evaluation, and predictions
+ - Data Explorer tab for uploading/inspecting datasets with visualizations
 
 ### Quick Start
 1) Create virtual environment
@@ -39,6 +40,19 @@ Expected columns (example, extend as needed):
 - label: 0 for real, 1 for fake
 
 See `data/sample_dataset.csv` for a template.
+
+### Data Explorer
+Use the new Data Explorer tab to upload and analyze any tabular file:
+
+Supported formats: CSV (.csv, .txt), Excel (.xlsx, .xls), JSON (.json), Parquet (.parquet/.pq).
+
+Actions:
+- Click "Browse File…" to open a file from `data/` or anywhere on disk.
+- Review the Summary (shape, dtypes, missingness, describe()) and a 50-row preview.
+- Switch to Visualizations to see a correlation heatmap, numeric distributions, and missing values bar chart.
+
+Notes:
+- Parquet requires an engine such as `pyarrow` or `fastparquet`. If missing, install it to enable Parquet loading.
 
 ### Project Structure
 ```
