@@ -14,7 +14,8 @@ Python desktop application implementing a hybrid detection system:
 - Generate synthetic fake samples
 - Fusion scoring and thresholding
 - Evaluation (Precision, Recall, F1, ROC-AUC)
-- GUI to orchestrate training, evaluation, and predictions
+- GUI with blue theme, wide layout (3/4 screen), and realtime training plots
+- Save training visualizations and generated samples under `results/`
 
 ### Quick Start
 1) Create virtual environment
@@ -29,6 +30,8 @@ pip install -r requirements.txt
 ```bash
 python -m app
 ```
+
+If you run into display issues on a remote server, ensure a desktop session is available or use an X server.
 
 ### Data Format (CSV)
 Expected columns (example, extend as needed):
@@ -62,11 +65,59 @@ requirements.txt
 README.md
 data/
   sample_dataset.csv
+results/
+  (generated at runtime: plots, synthetic samples)
 ```
 
 ### Notes
 - Models and scalers are saved under `.artifacts/` in the project root.
+- Realtime training plots are visible in the GUI and can be saved as PNG into `results/`.
+- Synthetic samples are written to `results/synthetic_fakes.csv`.
 - This code targets CPU by default; enable GPU in PyTorch if available.
+
+### How it works (In-depth)
+1. Data ingestion: You load a labeled CSV. Feature columns are selected via `app/ml/features.py`. The label is assumed binary: `0` (real) and `1` (fake).
+2. Normalization: You choose a normalization method (e.g., `zscore` or `minmax`). A scaler is fitted with the selected features and saved to `.artifacts/scaler.pkl` for reuse.
+3. Autoencoder: Trained only on real samples (`y == 0`). It learns to reconstruct normal patterns. Reconstruction error serves as an anomaly score.
+4. GAN: A tabular GAN is trained using the fake samples (`y == 1`). Its discriminator learns to distinguish generated/real-like patterns and provides a complementary probability signal.
+5. Fusion: The fusion scorer combines the autoencoder reconstruction error and GAN discriminator probability using weights `alpha` and `beta`. With a threshold `T`, samples are classified as fake (1) or real (0).
+6. Evaluation: On a labeled dataset, the app computes Precision, Recall, F1, and ROC-AUC.
+7. Realtime visualization: During training, losses are reported back to the GUI and plotted live using Matplotlib (blue-themed). You can clear or save the plot to `results/` at any time.
+8. Synthetic generation: After training the GAN, you can generate synthetic samples and save them to `results/synthetic_fakes.csv` for analysis or augmentation experiments.
+
+### Using the GUI
+- Dataset: Click "Browse CSV…" and pick a file under `data/` (or anywhere).
+- Normalize: Choose method and click "Fit Scaler".
+- Train Autoencoder: Set epochs/lr, click "Train Autoencoder". Watch the AE loss plot update.
+- Train GAN: Set epochs/lr, click "Train GAN". Watch G/D losses update.
+- Evaluate: Set `alpha`, `beta`, and threshold `T`, then click "Evaluate".
+- Predict on CSV: Score an unlabeled CSV and view basic statistics.
+- Generate Fake Samples: Choose `N synth` and generate to `results/synthetic_fakes.csv`.
+- Save/Clear Plot: Save the current plot to `results/` or clear histories.
+
+### Example runs
+Below are three example scenarios you can try after launching the GUI with `python -m app`:
+
+1) Quick end-to-end on the sample dataset
+   - Browse to `data/sample_dataset.csv`.
+   - Click "Fit Scaler" (leave `Normalize` as `zscore`).
+   - Train Autoencoder for 10 epochs (AE lr: 0.001), watch the AE loss curve.
+   - Train GAN for 20 epochs (GAN lr: 0.0005), watch G/D losses.
+   - Click "Evaluate" with `alpha=0.5`, `beta=0.5`, `T=0.5` and review metrics.
+   - Click "Save Plot" to store the combined plot under `results/`.
+
+2) Autoencoder-focused training and evaluation
+   - Use `data/train.csv` (or your dataset), "Fit Scaler" with `minmax`.
+   - Train Autoencoder for 25 epochs.
+   - Skip GAN training (you can evaluate with AE alone using `alpha>0`, `beta=0`).
+   - Evaluate with `alpha=1.0`, `beta=0.0`, `T=0.6`. Save plot to `results/`.
+
+3) GAN-focused training plus synthetic data generation
+   - Use `data/train.csv`, "Fit Scaler" with `zscore`.
+   - Train Autoencoder briefly (e.g., 5 epochs) to enable fusion later.
+   - Train GAN for 50 epochs.
+   - Click "Generate Fake Samples" with `N synth = 1000`.
+   - Inspect `results/synthetic_fakes.csv` and save the training plot to `results/`.
 
 # Instagram-fake-account-detection
 Detect fake Instagram post from real ones
