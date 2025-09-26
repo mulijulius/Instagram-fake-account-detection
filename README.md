@@ -8,14 +8,23 @@ Python desktop application implementing a hybrid detection system:
 
 ### Features
 - Load labeled CSV datasets (real/fake)
+  - Significance: unified entry point for datasets; ensures consistent feature selection.
 - Feature extraction and normalization
+  - Significance: standardizes inputs for stable learning and fair scoring.
 - Train Autoencoder (real-only)
+  - Significance: models normal behavior; reconstruction error is an anomaly signal.
 - Train tabular GAN (fake-only)
+  - Significance: discriminator probability complements AE error with a discriminative signal.
 - Generate synthetic fake samples
+  - Significance: supports augmentation and stress-testing of the pipeline.
 - Fusion scoring and thresholding
-- Evaluation (Precision, Recall, F1, ROC-AUC)
-- GUI with blue theme, wide layout (3/4 screen), and realtime training plots
-- Save training visualizations and generated samples under `results/`
+  - Significance: combines complementary signals with weights (alpha, beta) for robust detection.
+- Evaluation (Precision, Recall, F1, ROC-AUC, PR-AUC)
+  - Significance: covers thresholded and threshold-free performance views.
+- GUI with blue theme, wide layout, realtime training plots, and advanced visualizations
+  - Significance: enables interactive experimentation and monitoring.
+- Save visualizations and generated samples under `results/`
+  - Significance: ensures reproducibility and reporting.
 
 ### Quick Start
 1) Create virtual environment
@@ -32,6 +41,36 @@ python -m app
 ```
 
 If you run into display issues on a remote server, ensure a desktop session is available or use an X server.
+
+### Building a Single Executable
+You can compile the entire source into a single executable using PyInstaller.
+
+1) Install build tooling (in your virtualenv):
+```bash
+pip install pyinstaller
+```
+
+2) Build the app (POSIX):
+```bash
+pyinstaller --noconfirm \
+  --name InstagramFakeAccountDetector \
+  --onefile \
+  --windowed \
+  --add-data "data:data" \
+  --add-data "results:results" \
+  --add-data ".artifacts:.artifacts" \
+  app/__main__.py
+```
+
+Notes:
+- On Linux, the executable will land in `dist/InstagramFakeAccountDetector`.
+- `--windowed` hides the console window for GUI apps.
+- If packaging fails due to hidden imports, add `--hidden-import` for missing modules (e.g., some `sklearn` subpackages).
+
+3) Run the binary:
+```bash
+./dist/InstagramFakeAccountDetector
+```
 
 ### Data Format (CSV)
 Expected columns (example, extend as needed):
@@ -94,6 +133,24 @@ results/
 - Predict on CSV: Score an unlabeled CSV and view basic statistics.
 - Generate Fake Samples: Choose `N synth` and generate to `results/synthetic_fakes.csv`.
 - Save/Clear Plot: Save the current plot to `results/` or clear histories.
+
+#### GUI Controls & Significance
+- Browse CSV…: select input dataset; required for all subsequent steps.
+- Normalize + Fit Scaler: fits and stores scaler for consistent preprocessing.
+- Train Autoencoder: trains AE on real samples; monitors reconstruction MSE.
+- Train GAN: trains tabular GAN on fake samples; monitors generator/discriminator loss.
+- Evaluate: computes metrics and renders ROC, PR, confusion matrix, and score histogram.
+- Predict on CSV…: scores unlabeled data using current fusion settings.
+- Generate Fake Samples: creates synthetic fakes to `results/synthetic_fakes.csv`.
+- Save Plot / Clear Plot: export all subplots or reset the canvas.
+
+#### Visualizations and Captions
+- Autoencoder Loss — caption: "Autoencoder training loss over epochs (MSE)"
+- GAN Losses — caption: "Generator and Discriminator training losses (BCE)"
+- ROC Curve — caption: "ROC curve (AUC computed after Evaluate)"
+- Precision-Recall Curve — caption: "Precision-Recall curve (AUPRC computed after Evaluate)"
+- Confusion Matrix — caption: "Confusion matrix at current threshold"
+- Score Distribution — caption: "Score histogram by class; vertical line = threshold"
 
 ### Example runs
 Below are three example scenarios you can try after launching the GUI with `python -m app`:
