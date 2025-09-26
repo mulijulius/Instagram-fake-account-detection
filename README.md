@@ -25,6 +25,10 @@ Python desktop application implementing a hybrid detection system:
   - Significance: enables interactive experimentation and monitoring.
 - Save visualizations and generated samples under `results/`
   - Significance: ensures reproducibility and reporting.
+- In-app Tutorial tab with comprehensive guide
+  - Significance: provides an integrated, step-by-step walkthrough inside the app.
+- Hover screentips on all controls
+  - Significance: guidance appears when you hover buttons, fields, and spin boxes.
 
 ### Quick Start
 1) Create virtual environment
@@ -41,6 +45,8 @@ python -m app
 ```
 
 If you run into display issues on a remote server, ensure a desktop session is available or use an X server.
+
+After launching, open the "Tutorial" tab for a guided walkthrough. Hover over controls to see screentips.
 
 ### Building a Single Executable
 You can compile the entire source into a single executable using PyInstaller.
@@ -151,6 +157,18 @@ results/
 - Precision-Recall Curve — caption: "Precision-Recall curve (AUPRC computed after Evaluate)"
 - Confusion Matrix — caption: "Confusion matrix at current threshold"
 - Score Distribution — caption: "Score histogram by class; vertical line = threshold"
+
+### In-App Tutorial and Screentips
+The GUI now includes a dedicated "Tutorial" tab (beside the main "App" tab) that provides a comprehensive, in-app guide. It covers:
+- Load Dataset: choosing a CSV and verifying the selection
+- Normalize: selecting `zscore` or `minmax` and fitting the scaler
+- Train Models: configuring epochs/lr and training AE and GAN
+- Fusion & Evaluation: tuning `alpha`, `beta`, and `Threshold T`; viewing metrics and plots
+- Predict: scoring a separate CSV and reading the fake-rate summary
+- Visualization: using the toolbar to pan/zoom/save; saving or clearing the plot
+- Synthetic Data: selecting `N synth` and generating `results/synthetic_fakes.csv`
+
+Additionally, hover screentips are provided across the interface. Pause your cursor over buttons, inputs, and spin boxes to see concise help about each control.
 
 ### Example runs
 Below are three example scenarios you can try after launching the GUI with `python -m app`:
