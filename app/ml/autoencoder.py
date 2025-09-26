@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Callable
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -40,7 +40,13 @@ class AutoencoderTrainer:
     def __post_init__(self):
         self.model = SimpleAutoencoder(self.input_dim, self.latent_dim).to(self.device)
 
-    def train(self, X: np.ndarray, epochs: int = 25, lr: float = 1e-3) -> None:
+    def train(
+        self,
+        X: np.ndarray,
+        epochs: int = 25,
+        lr: float = 1e-3,
+        on_epoch: Optional[Callable[[int, float], None]] = None,
+    ) -> None:
         X = np.asarray(X, dtype=np.float32)
         dataset = TensorDataset(torch.from_numpy(X))
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, drop_last=False)
@@ -48,7 +54,9 @@ class AutoencoderTrainer:
         loss_fn = nn.MSELoss()
 
         self.model.train()
-        for _ in range(epochs):
+        for epoch_index in range(1, epochs + 1):
+            epoch_loss_sum = 0.0
+            batch_count = 0
             for (xb,) in loader:
                 xb = xb.to(self.device)
                 x_hat = self.model(xb)
@@ -56,6 +64,10 @@ class AutoencoderTrainer:
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
+                epoch_loss_sum += float(loss.item())
+                batch_count += 1
+            if on_epoch is not None and batch_count > 0:
+                on_epoch(epoch_index, epoch_loss_sum / batch_count)
 
     def save(self, path: str) -> None:
         torch.save({

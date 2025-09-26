@@ -10,8 +10,12 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QSpinBox,
     QMessageBox,
+    QApplication,
 )
 from PySide6.QtCore import Qt
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+from datetime import datetime
 
 from app.ml.data import load_dataset
 from app.ml.features import select_feature_columns, split_features_labels
@@ -37,6 +41,18 @@ class MainWindow(QMainWindow):
 
         os.makedirs(".artifacts", exist_ok=True)
         os.makedirs("data", exist_ok=True)
+        os.makedirs("results", exist_ok=True)
+
+        # Blue theme styling
+        self.setStyleSheet(
+            """
+            QMainWindow { background-color: #0d47a1; color: white; }
+            QLabel { color: white; }
+            QPushButton { background-color: #1976d2; color: white; border: none; padding: 6px 10px; }
+            QPushButton:hover { background-color: #1e88e5; }
+            QLineEdit, QDoubleSpinBox, QSpinBox { background: white; color: #0d47a1; }
+            """
+        )
 
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -112,7 +128,68 @@ class MainWindow(QMainWindow):
         layout.addLayout(predict_row)
         layout.addLayout(synth_row)
 
+        # Realtime visualization area (Matplotlib)
+        self.figure = Figure(figsize=(8, 6), facecolor="#0d47a1")
+        self.ax_ae = self.figure.add_subplot(2, 1, 1)
+        self.ax_gan = self.figure.add_subplot(2, 1, 2)
+
+        for ax in (self.ax_ae, self.ax_gan):
+            ax.set_facecolor("#0d47a1")
+            ax.tick_params(colors="white")
+            for spine in ax.spines.values():
+                spine.set_color("white")
+            ax.title.set_color("white")
+            ax.yaxis.label.set_color("white")
+            ax.xaxis.label.set_color("white")
+            ax.grid(True, color="white", alpha=0.12)
+
+        self.ax_ae.set_title("Autoencoder Loss")
+        self.ax_ae.set_xlabel("Epoch")
+        self.ax_ae.set_ylabel("MSE")
+        self.ax_gan.set_title("GAN Losses")
+        self.ax_gan.set_xlabel("Epoch")
+        self.ax_gan.set_ylabel("BCE")
+
+        self.epoch_history_ae: list[int] = []
+        self.loss_history_ae: list[float] = []
+        self.epoch_history_gan: list[int] = []
+        self.g_loss_history: list[float] = []
+        self.d_loss_history: list[float] = []
+
+        (self.line_ae,) = self.ax_ae.plot([], [], color="#64b5f6", label="AE Loss")
+        (self.line_g_gan,) = self.ax_gan.plot([], [], color="#90caf9", label="G Loss")
+        (self.line_d_gan,) = self.ax_gan.plot([], [], color="#1565c0", label="D Loss")
+        leg = self.ax_gan.legend()
+        if leg is not None:
+            leg.get_frame().set_facecolor("#0d47a1")
+            leg.get_frame().set_edgecolor("white")
+            for t in leg.get_texts():
+                t.set_color("white")
+
+        self.canvas = FigureCanvas(self.figure)
+        toolbar = NavigationToolbar(self.canvas, self)
+        plot_box = QVBoxLayout()
+        plot_box.addWidget(toolbar)
+        plot_box.addWidget(self.canvas)
+        layout.addLayout(plot_box)
+
+        # Plot controls
+        plot_controls = QHBoxLayout()
+        btn_save_plot = QPushButton("Save Plot")
+        btn_save_plot.clicked.connect(self.on_save_plot)
+        btn_clear_plot = QPushButton("Clear Plot")
+        btn_clear_plot.clicked.connect(self.on_clear_plot)
+        plot_controls.addWidget(btn_save_plot)
+        plot_controls.addWidget(btn_clear_plot)
+        layout.addLayout(plot_controls)
+
         self.setCentralWidget(container)
+
+        # Set size to at least 3/4 of available screen
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            geo = screen.availableGeometry()
+            self.resize(int(geo.width() * 0.75), int(geo.height() * 0.75))
 
     def on_browse(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Select CSV Dataset", "data", "CSV Files (*.csv)")
@@ -151,7 +228,21 @@ class MainWindow(QMainWindow):
         Xn = apply_scaler(scaler, X[cols])
         # train autoencoder on real-only (y==0)
         trainer = AutoencoderTrainer(input_dim=Xn.shape[1])
-        trainer.train(Xn[y == 0], epochs=int(self.ae_epochs.value()), lr=float(self.ae_lr.value()))
+
+        def ae_on_epoch(epoch: int, loss: float) -> None:
+            self.epoch_history_ae.append(epoch)
+            self.loss_history_ae.append(loss)
+            self.line_ae.set_data(self.epoch_history_ae, self.loss_history_ae)
+            self.ax_ae.relim(); self.ax_ae.autoscale_view()
+            self.canvas.draw_idle()
+            QApplication.processEvents()
+
+        trainer.train(
+            Xn[y == 0],
+            epochs=int(self.ae_epochs.value()),
+            lr=float(self.ae_lr.value()),
+            on_epoch=ae_on_epoch,
+        )
         trainer.save(self.autoencoder_path)
         QMessageBox.information(self, "Autoencoder", f"Saved to {self.autoencoder_path}")
 
@@ -168,7 +259,23 @@ class MainWindow(QMainWindow):
             return
         Xn = apply_scaler(scaler, X[cols])
         trainer = TabularGANTrainer(input_dim=Xn.shape[1])
-        trainer.train(fakes=Xn[y == 1], epochs=int(self.gan_epochs.value()), lr=float(self.gan_lr.value()))
+
+        def gan_on_epoch(epoch: int, g_loss: float, d_loss: float) -> None:
+            self.epoch_history_gan.append(epoch)
+            self.g_loss_history.append(g_loss)
+            self.d_loss_history.append(d_loss)
+            self.line_g_gan.set_data(self.epoch_history_gan, self.g_loss_history)
+            self.line_d_gan.set_data(self.epoch_history_gan, self.d_loss_history)
+            self.ax_gan.relim(); self.ax_gan.autoscale_view()
+            self.canvas.draw_idle()
+            QApplication.processEvents()
+
+        trainer.train(
+            fakes=Xn[y == 1],
+            epochs=int(self.gan_epochs.value()),
+            lr=float(self.gan_lr.value()),
+            on_epoch=gan_on_epoch,
+        )
         trainer.save(discriminator_path=self.gan_discriminator_path)
         QMessageBox.information(self, "GAN", f"Discriminator saved to {self.gan_discriminator_path}")
 
@@ -217,6 +324,29 @@ class MainWindow(QMainWindow):
             return
         # Use the trainer class to sample via generator weights stored internally if implemented
         # For simplicity, we rely on synth module to generate tabular noise matching discriminator input size
-        out = save_synthetic_samples(n, out_csv="data/synthetic_fakes.csv", discriminator_path=self.gan_discriminator_path)
-        QMessageBox.information(self, "Synthetic", f"Saved {out} samples to data/synthetic_fakes.csv")
+        out = save_synthetic_samples(
+            n,
+            out_csv="results/synthetic_fakes.csv",
+            discriminator_path=self.gan_discriminator_path,
+        )
+        QMessageBox.information(self, "Synthetic", f"Saved {out} samples to results/synthetic_fakes.csv")
+
+    def on_save_plot(self) -> None:
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        out_path = os.path.join("results", f"training_plot_{ts}.png")
+        self.figure.savefig(out_path, dpi=150, facecolor=self.figure.get_facecolor())
+        QMessageBox.information(self, "Plot Saved", f"Saved to {out_path}")
+
+    def on_clear_plot(self) -> None:
+        self.epoch_history_ae.clear()
+        self.loss_history_ae.clear()
+        self.epoch_history_gan.clear()
+        self.g_loss_history.clear()
+        self.d_loss_history.clear()
+        self.line_ae.set_data([], [])
+        self.line_g_gan.set_data([], [])
+        self.line_d_gan.set_data([], [])
+        self.ax_ae.relim(); self.ax_ae.autoscale_view()
+        self.ax_gan.relim(); self.ax_gan.autoscale_view()
+        self.canvas.draw_idle()
 
