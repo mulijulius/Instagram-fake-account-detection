@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QMessageBox,
     QApplication,
+    QTabWidget,
+    QTextBrowser,
 )
 from PySide6.QtCore import Qt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
@@ -62,7 +64,9 @@ class MainWindow(QMainWindow):
         # Dataset loader
         dataset_row = QHBoxLayout()
         self.dataset_label = QLabel("Dataset: not selected")
+        self.dataset_label.setToolTip("Shows the selected dataset CSV filename.")
         btn_browse = QPushButton("Browse CSV…")
+        btn_browse.setToolTip("Choose a CSV dataset from disk.")
         btn_browse.clicked.connect(self.on_browse)
         dataset_row.addWidget(self.dataset_label)
         dataset_row.addWidget(btn_browse)
@@ -71,7 +75,9 @@ class MainWindow(QMainWindow):
         norm_row = QHBoxLayout()
         self.norm_method = QLineEdit("zscore")
         self.norm_method.setPlaceholderText("zscore|minmax")
+        self.norm_method.setToolTip("Normalization method: 'zscore' (standardize) or 'minmax' (scale to [0,1]).")
         btn_fit_scaler = QPushButton("Fit Scaler")
+        btn_fit_scaler.setToolTip("Fit and save a scaler based on the selected dataset and method.")
         btn_fit_scaler.clicked.connect(self.on_fit_scaler)
         norm_row.addWidget(QLabel("Normalize:"))
         norm_row.addWidget(self.norm_method)
@@ -79,14 +85,14 @@ class MainWindow(QMainWindow):
 
         # Training controls
         train_row = QHBoxLayout()
-        self.ae_epochs = QSpinBox(); self.ae_epochs.setRange(1, 10000); self.ae_epochs.setValue(25)
-        self.ae_lr = QDoubleSpinBox(); self.ae_lr.setDecimals(5); self.ae_lr.setRange(1e-6, 1.0); self.ae_lr.setSingleStep(0.0001); self.ae_lr.setValue(0.001)
-        btn_train_ae = QPushButton("Train Autoencoder")
+        self.ae_epochs = QSpinBox(); self.ae_epochs.setRange(1, 10000); self.ae_epochs.setValue(25); self.ae_epochs.setToolTip("Number of training epochs for the autoencoder.")
+        self.ae_lr = QDoubleSpinBox(); self.ae_lr.setDecimals(5); self.ae_lr.setRange(1e-6, 1.0); self.ae_lr.setSingleStep(0.0001); self.ae_lr.setValue(0.001); self.ae_lr.setToolTip("Learning rate for the autoencoder optimizer.")
+        btn_train_ae = QPushButton("Train Autoencoder"); btn_train_ae.setToolTip("Train the autoencoder on real (y=0) samples and save the model.")
         btn_train_ae.clicked.connect(self.on_train_autoencoder)
 
-        self.gan_epochs = QSpinBox(); self.gan_epochs.setRange(1, 10000); self.gan_epochs.setValue(50)
-        self.gan_lr = QDoubleSpinBox(); self.gan_lr.setDecimals(5); self.gan_lr.setRange(1e-6, 1.0); self.gan_lr.setSingleStep(0.0001); self.gan_lr.setValue(0.0005)
-        btn_train_gan = QPushButton("Train GAN")
+        self.gan_epochs = QSpinBox(); self.gan_epochs.setRange(1, 10000); self.gan_epochs.setValue(50); self.gan_epochs.setToolTip("Number of training epochs for the GAN.")
+        self.gan_lr = QDoubleSpinBox(); self.gan_lr.setDecimals(5); self.gan_lr.setRange(1e-6, 1.0); self.gan_lr.setSingleStep(0.0001); self.gan_lr.setValue(0.0005); self.gan_lr.setToolTip("Learning rate for GAN training.")
+        btn_train_gan = QPushButton("Train GAN"); btn_train_gan.setToolTip("Train the GAN discriminator on fake samples and save the discriminator.")
         btn_train_gan.clicked.connect(self.on_train_gan)
 
         train_row.addWidget(QLabel("AE epochs")); train_row.addWidget(self.ae_epochs)
@@ -99,10 +105,10 @@ class MainWindow(QMainWindow):
 
         # Fusion and threshold
         fusion_row = QHBoxLayout()
-        self.alpha = QDoubleSpinBox(); self.alpha.setRange(0.0, 1.0); self.alpha.setSingleStep(0.05); self.alpha.setValue(0.5)
-        self.beta = QDoubleSpinBox(); self.beta.setRange(0.0, 1.0); self.beta.setSingleStep(0.05); self.beta.setValue(0.5)
-        self.threshold = QDoubleSpinBox(); self.threshold.setRange(0.0, 1.0); self.threshold.setSingleStep(0.01); self.threshold.setValue(0.5)
-        btn_eval = QPushButton("Evaluate")
+        self.alpha = QDoubleSpinBox(); self.alpha.setRange(0.0, 1.0); self.alpha.setSingleStep(0.05); self.alpha.setValue(0.5); self.alpha.setToolTip("Weight for the autoencoder anomaly score in fusion (0-1).")
+        self.beta = QDoubleSpinBox(); self.beta.setRange(0.0, 1.0); self.beta.setSingleStep(0.05); self.beta.setValue(0.5); self.beta.setToolTip("Weight for the GAN discriminator score in fusion (0-1).")
+        self.threshold = QDoubleSpinBox(); self.threshold.setRange(0.0, 1.0); self.threshold.setSingleStep(0.01); self.threshold.setValue(0.5); self.threshold.setToolTip("Decision threshold T for classifying samples as fake (>= T).")
+        btn_eval = QPushButton("Evaluate"); btn_eval.setToolTip("Evaluate models, update plots, and show metrics.")
         btn_eval.clicked.connect(self.on_evaluate)
         fusion_row.addWidget(QLabel("alpha")); fusion_row.addWidget(self.alpha)
         fusion_row.addWidget(QLabel("beta")); fusion_row.addWidget(self.beta)
@@ -112,13 +118,14 @@ class MainWindow(QMainWindow):
         # Predict single CSV
         predict_row = QHBoxLayout()
         btn_predict = QPushButton("Predict on CSV…")
+        btn_predict.setToolTip("Run prediction on a separate CSV using current scaler and models.")
         btn_predict.clicked.connect(self.on_predict)
         predict_row.addWidget(btn_predict)
 
         # Synthetic data generation
         synth_row = QHBoxLayout()
-        self.synth_num = QSpinBox(); self.synth_num.setRange(1, 100000); self.synth_num.setValue(500)
-        btn_synth = QPushButton("Generate Fake Samples")
+        self.synth_num = QSpinBox(); self.synth_num.setRange(1, 100000); self.synth_num.setValue(500); self.synth_num.setToolTip("Number of synthetic fake samples to generate.")
+        btn_synth = QPushButton("Generate Fake Samples"); btn_synth.setToolTip("Generate synthetic samples using the trained GAN discriminator.")
         btn_synth.clicked.connect(self.on_generate_synth)
         synth_row.addWidget(QLabel("N synth")); synth_row.addWidget(self.synth_num)
         synth_row.addWidget(btn_synth)
@@ -195,7 +202,9 @@ class MainWindow(QMainWindow):
         self.captions[self.ax_hist] = self.ax_hist.text(0.5, -0.22, "Score distribution by class; vertical line = threshold", transform=self.ax_hist.transAxes, ha="center", va="top", color="white")
 
         self.canvas = FigureCanvas(self.figure)
+        self.canvas.setToolTip("Interactive plots: use the toolbar to pan/zoom; click save to export.")
         toolbar = NavigationToolbar(self.canvas, self)
+        toolbar.setToolTip("Matplotlib toolbar: pan, zoom, home, and save plot.")
         plot_box = QVBoxLayout()
         plot_box.addWidget(toolbar)
         plot_box.addWidget(self.canvas)
@@ -204,14 +213,84 @@ class MainWindow(QMainWindow):
         # Plot controls
         plot_controls = QHBoxLayout()
         btn_save_plot = QPushButton("Save Plot")
+        btn_save_plot.setToolTip("Save the current figure to the results folder.")
         btn_save_plot.clicked.connect(self.on_save_plot)
         btn_clear_plot = QPushButton("Clear Plot")
+        btn_clear_plot.setToolTip("Clear training history and evaluation plots.")
         btn_clear_plot.clicked.connect(self.on_clear_plot)
         plot_controls.addWidget(btn_save_plot)
         plot_controls.addWidget(btn_clear_plot)
         layout.addLayout(plot_controls)
 
-        self.setCentralWidget(container)
+        # Tabs: Main app + Tutorial
+        tabs = QTabWidget()
+        tabs.addTab(container, "App")
+
+        tutorial = QTextBrowser()
+        tutorial.setOpenExternalLinks(True)
+        tutorial.setStyleSheet("QTextBrowser { background: white; color: #0d47a1; padding: 12px; }")
+        tutorial.setHtml(
+            """
+            <h2>Instagram Fake Account Detection - Tutorial</h2>
+            <p>This tutorial explains how to use each part of the GUI.</p>
+
+            <h3>1. Load Dataset</h3>
+            <ul>
+              <li><b>Browse CSV…</b>: Choose a labeled CSV containing features and an optional label column.</li>
+              <li><b>Dataset label</b>: Shows the selected filename.</li>
+            </ul>
+
+            <h3>2. Normalize</h3>
+            <ul>
+              <li><b>Normalize</b>: Enter <code>zscore</code> (standardize) or <code>minmax</code> (scale to [0,1]).</li>
+              <li><b>Fit Scaler</b>: Fits and saves a scaler based on the dataset and method.</li>
+            </ul>
+
+            <h3>3. Train Models</h3>
+            <ul>
+              <li><b>AE epochs / AE lr</b>: Controls for autoencoder training duration and learning rate.</li>
+              <li><b>Train Autoencoder</b>: Trains on real samples and saves to <code>.artifacts/autoencoder.pt</code>.</li>
+              <li><b>GAN epochs / GAN lr</b>: Controls for GAN training duration and learning rate.</li>
+              <li><b>Train GAN</b>: Trains GAN discriminator and saves to <code>.artifacts/gan_discriminator.pt</code>.</li>
+            </ul>
+
+            <h3>4. Fusion & Evaluation</h3>
+            <ul>
+              <li><b>alpha / beta</b>: Fusion weights for autoencoder and GAN scores (0-1).</li>
+              <li><b>Threshold T</b>: Decision threshold for classifying a sample as fake.</li>
+              <li><b>Evaluate</b>: Computes metrics, ROC, PR, confusion matrix, and histogram.</li>
+            </ul>
+
+            <h3>5. Predict</h3>
+            <ul>
+              <li><b>Predict on CSV…</b>: Scores a separate CSV using current scaler and models; shows fake rate.</li>
+            </ul>
+
+            <h3>6. Visualization</h3>
+            <ul>
+              <li><b>Plots</b>: Loss curves and evaluation charts update during training/evaluation.</li>
+              <li><b>Toolbar</b>: Use pan/zoom/home; the disk icon saves a snapshot.</li>
+              <li><b>Save Plot</b>: Exports the figure to <code>results/</code> with a timestamped filename.</li>
+              <li><b>Clear Plot</b>: Resets curves and evaluation charts.</li>
+            </ul>
+
+            <h3>7. Synthetic Data</h3>
+            <ul>
+              <li><b>N synth</b>: Number of synthetic fake samples to generate.</li>
+              <li><b>Generate Fake Samples</b>: Writes CSV to <code>results/synthetic_fakes.csv</code>.</li>
+            </ul>
+
+            <h3>Tips</h3>
+            <ul>
+              <li>Always <b>Fit Scaler</b> after selecting a new dataset before training or prediction.</li>
+              <li>Experiment with <b>alpha</b>, <b>beta</b>, and <b>Threshold T</b> to balance precision/recall.</li>
+              <li>Hover over controls to see screentips.</li>
+            </ul>
+            """
+        )
+        tabs.addTab(tutorial, "Tutorial")
+
+        self.setCentralWidget(tabs)
 
         # Set size to at least 3/4 of available screen
         screen = QApplication.primaryScreen()
