@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(
             """
             QMainWindow { background-color: #0d47a1; color: white; }
-            QLabel { color: white; }
+            QLabel { color: black; }
             QPushButton { background-color: #1976d2; color: white; border: none; padding: 6px 10px; }
             QPushButton:hover { background-color: #1e88e5; }
             QLineEdit, QDoubleSpinBox, QSpinBox { background: white; color: #0d47a1; }
